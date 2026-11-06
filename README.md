@@ -167,3 +167,22 @@ Os testes usam um SQLite em memória, portanto não precisam de Docker nem alter
 ## Em desenvolvimento
 
 - [ ] Revisão final contra o enunciado (Parte 6)
+
+## Documentação da API
+
+A documentação interativa (Swagger) é gerada automaticamente pelo FastAPI:
+
+- Swagger UI: http://localhost:8000/docs
+- ReDoc: http://localhost:8000/redoc
+
+## Boas práticas aplicadas
+
+- Credenciais fora do código (`.env`, não versionado)
+- Banco e API em containers separados
+- Testes isolados com SQLite em memória
+- Validação de dados com Pydantic
+- Paginação e busca por nome na listagem
+
+## Autor
+
+Gabriel Martins

@@ -1,32 +1,80 @@
 # Pokémon API
 
-API REST para gerenciar pokémons (CRUD completo), construída com **FastAPI** e **SQLAlchemy**.
+API REST para gerenciar pokémons (CRUD completo), construída com **FastAPI**, **SQLAlchemy** e **PostgreSQL**, e containerizada com **Docker**.
 
 ## Tecnologias
 
-- Python 3
+- Python 3.12
 - FastAPI (framework e documentação Swagger automática)
 - SQLAlchemy (ORM)
 - Pydantic (validação de dados)
-- SQLite (padrão local) / PostgreSQL (via `DATABASE_URL`)
+- PostgreSQL (via Docker) / SQLite (testes e uso local sem Docker)
+- Pytest (testes unitários)
+- Docker e docker-compose
 
 ## Estrutura do projeto
 
 ```
-pokemon-api/
+projetoFinal/
 ├── app/
 │   ├── __init__.py
-│   ├── database.py    # conexão com o banco
+│   ├── database.py    # conexão com o banco (lê DATABASE_URL)
 │   ├── models.py      # tabela Pokemon (SQLAlchemy)
 │   ├── schemas.py     # validação de entrada e saída (Pydantic)
 │   └── main.py        # endpoints da API
 ├── tests/
-│   └── __init__.py
-├── requirements.txt
-└── .gitignore
+│   ├── __init__.py
+│   └── test_pokemons.py
+├── .env.example       # modelo das variáveis de ambiente
+├── .gitignore
+├── docker-compose.yml # API + PostgreSQL
+├── Dockerfile
+├── README.md
+└── requirements.txt
 ```
 
-## Como rodar localmente
+## Variáveis de ambiente
+
+As credenciais ficam fora do código, em um arquivo `.env` (que não é versionado). Use o `.env.example` como modelo:
+
+```
+POSTGRES_USER=pokemon
+POSTGRES_PASSWORD=pokemon
+POSTGRES_DB=pokemon
+DATABASE_URL=postgresql+psycopg2://pokemon:pokemon@db:5432/pokemon
+```
+
+Crie o seu `.env` a partir do modelo:
+
+```bash
+# Windows (cmd)
+copy .env.example .env
+
+# Linux / Mac
+cp .env.example .env
+```
+
+## Como rodar com Docker (recomendado)
+
+Pré-requisito: Docker Desktop aberto.
+
+```bash
+copy .env.example .env
+docker compose up --build
+```
+
+Serão iniciados dois containers separados: a API (FastAPI) e o banco (PostgreSQL). Os dados ficam guardados no volume `pgdata`.
+
+- API: http://localhost:8000
+- Documentação (Swagger): http://localhost:8000/docs
+
+Para parar:
+
+```bash
+docker compose down
+```
+
+## Como rodar localmente (sem Docker)
 
 1. Criar e ativar o ambiente virtual (Windows):
 
@@ -47,12 +95,16 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-4. Acessar:
+Sem a variável `DATABASE_URL` definida, a API usa um banco SQLite local (`pokemon.db`).
 
-- API: http://localhost:8000
-- Documentação (Swagger): http://localhost:8000/docs
+## Como executar os testes
 
-Por padrão a API usa um banco SQLite local (`pokemon.db`). Para usar outro banco, defina a variável de ambiente `DATABASE_URL`.
+```bash
+pip install -r requirements.txt
+pytest
+```
+
+Os testes usam um SQLite em memória, portanto não precisam de Docker nem alteram o banco real. Cobrem os 5 endpoints, a paginação e os erros (400 e 404).
 
 ## Endpoints
 
@@ -114,6 +166,4 @@ Por padrão a API usa um banco SQLite local (`pokemon.db`). Para usar outro banc
 
 ## Em desenvolvimento
 
-- [ ] Testes unitários (pytest)
-- [ ] Docker e docker-compose com PostgreSQL
-- [ ] Variáveis de ambiente (`.env.example`)
+- [ ] Revisão final contra o enunciado (Parte 6)

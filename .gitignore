@@ -1,0 +1,6 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+pokemon.db
+.pytest_cache/

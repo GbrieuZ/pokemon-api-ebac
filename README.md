@@ -185,4 +185,4 @@ A documentação interativa (Swagger) é gerada automaticamente pelo FastAPI:
 
 ## Autor
 
-Gabriel Martins de Oliveira
+Gabriel Martins

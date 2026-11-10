@@ -86,3 +86,40 @@ def test_delete_pokemon():
     created = client.post("/pokemons", json=PIKACHU).json()
     assert client.delete(f"/pokemons/{created['id']}").status_code == 204
     assert client.get(f"/pokemons/{created['id']}").status_code == 404
+
+def test_update_duplicate_name_returns_400():
+    client.post("/pokemons", json=PIKACHU)
+    raichu = client.post(
+        "/pokemons", json={"name": "raichu", "type": "electric"}
+    ).json()
+    r = client.put(f"/pokemons/{raichu['id']}", json={"name": "pikachu"})
+    assert r.status_code == 400
+    assert r.json()["detail"] == "Pokémon já existe"
+
+
+def test_update_same_name_is_allowed():
+    created = client.post("/pokemons", json=PIKACHU).json()
+    r = client.put(f"/pokemons/{created['id']}", json={"name": "pikachu", "weight": 70})
+    assert r.status_code == 200
+    assert r.json()["weight"] == 70
+
+
+def test_update_name_null_returns_422():
+    created = client.post("/pokemons", json=PIKACHU).json()
+    r = client.put(f"/pokemons/{created['id']}", json={"name": None})
+    assert r.status_code == 422
+
+
+def test_update_type_null_returns_422():
+    created = client.post("/pokemons", json=PIKACHU).json()
+    r = client.put(f"/pokemons/{created['id']}", json={"type": None})
+    assert r.status_code == 422
+
+
+def test_update_omitting_name_and_type_is_allowed():
+    created = client.post("/pokemons", json=PIKACHU).json()
+    r = client.put(f"/pokemons/{created['id']}", json={"height": 5})
+    assert r.status_code == 200
+    assert r.json()["name"] == "pikachu"
+    assert r.json()["type"] == "electric"
+    assert r.json()["height"] == 5

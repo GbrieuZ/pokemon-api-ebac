@@ -183,6 +183,16 @@ A documentação interativa (Swagger) é gerada automaticamente pelo FastAPI:
 - Validação de dados com Pydantic
 - Paginação e busca por nome na listagem
 
+## Erros
+
+| Código | Quando acontece |
+|---|---|
+| 400 | POST ou PUT com nome que já pertence a outro pokémon |
+| 404 | Pokémon não encontrado (GET, PUT e DELETE por id) |
+| 422 | Dados inválidos, incluindo `name` ou `type` enviados como `null` no PUT |
+
+No PUT a atualização é parcial: `name` e `type` podem ser omitidos, mas não podem ser `null`.
+
 ## Autor
 
 Gabriel Martins

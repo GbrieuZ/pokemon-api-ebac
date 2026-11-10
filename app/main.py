@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.database import Base, engine, SessionLocal
 from app.models import Pokemon
-from app.schemas import PokemonCreate, PokemonUpdate, PokemonOut, PokemonList
+from app.schemas import PokemonCreate, PokemonUpdate, PokemonOut, PokemonList, ErrorResponse
 
 
 @asynccontextmanager
@@ -31,8 +31,25 @@ def get_or_404(db: Session, pokemon_id: int) -> Pokemon:
     return pokemon
 
 
-@app.post("/pokemons", response_model=PokemonOut, status_code=201,
-          summary="Criar pokémon")
+@app.post(
+    "/pokemons",
+    response_model=PokemonOut,
+    status_code=201,
+    summary="Criar pokémon",
+    responses={
+        201: {
+            "description": "Pokémon criado",
+            "content": {"application/json": {"example": {
+                "id": 1, "name": "pikachu", "type": "electric",
+                "height": 4, "weight": 60}}},
+        },
+        400: {
+            "model": ErrorResponse,
+            "description": "Pokémon com esse nome já existe",
+            "content": {"application/json": {"example": {"detail": "Pokémon já existe"}}},
+        },
+    },
+)
 def create_pokemon(data: PokemonCreate, db: Session = Depends(get_db)):
     if db.query(Pokemon).filter(Pokemon.name == data.name).first():
         raise HTTPException(status_code=400, detail="Pokémon já existe")
@@ -43,8 +60,11 @@ def create_pokemon(data: PokemonCreate, db: Session = Depends(get_db)):
     return pokemon
 
 
-@app.get("/pokemons", response_model=PokemonList,
-         summary="Listar pokémons (paginado, com busca por nome)")
+@app.get(
+    "/pokemons",
+    response_model=PokemonList,
+    summary="Listar pokémons (paginado, com busca por nome)",
+)
 def list_pokemons(
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
@@ -60,26 +80,71 @@ def list_pokemons(
             "pagination": {"total": total, "limit": limit, "offset": offset}}
 
 
-@app.get("/pokemons/{pokemon_id}", response_model=PokemonOut,
-         summary="Buscar pokémon por id")
+@app.get(
+    "/pokemons/{pokemon_id}",
+    response_model=PokemonOut,
+    summary="Buscar pokémon por id",
+    responses={
+        404: {
+            "model": ErrorResponse,
+            "description": "Pokémon não encontrado",
+            "content": {"application/json": {"example": {"detail": "Pokémon não encontrado"}}},
+        },
+    },
+)
 def get_pokemon(pokemon_id: int, db: Session = Depends(get_db)):
     return get_or_404(db, pokemon_id)
 
 
-@app.put("/pokemons/{pokemon_id}", response_model=PokemonOut,
-         summary="Atualizar pokémon")
+@app.put(
+    "/pokemons/{pokemon_id}",
+    response_model=PokemonOut,
+    summary="Atualizar pokémon (parcial)",
+    responses={
+        400: {
+            "model": ErrorResponse,
+            "description": "Já existe outro pokémon com esse nome",
+            "content": {"application/json": {"example": {"detail": "Pokémon já existe"}}},
+        },
+        404: {
+            "model": ErrorResponse,
+            "description": "Pokémon não encontrado",
+            "content": {"application/json": {"example": {"detail": "Pokémon não encontrado"}}},
+        },
+    },
+)
 def update_pokemon(pokemon_id: int, data: PokemonUpdate,
                    db: Session = Depends(get_db)):
     pokemon = get_or_404(db, pokemon_id)
-    for field, value in data.model_dump(exclude_unset=True).items():
+    changes = data.model_dump(exclude_unset=True)
+
+    new_name = changes.get("name")
+    if new_name and new_name != pokemon.name:
+        duplicate = db.query(Pokemon).filter(
+            Pokemon.name == new_name, Pokemon.id != pokemon_id
+        ).first()
+        if duplicate:
+            raise HTTPException(status_code=400, detail="Pokémon já existe")
+
+    for field, value in changes.items():
         setattr(pokemon, field, value)
     db.commit()
     db.refresh(pokemon)
     return pokemon
 
 
-@app.delete("/pokemons/{pokemon_id}", status_code=204,
-            summary="Excluir pokémon")
+@app.delete(
+    "/pokemons/{pokemon_id}",
+    status_code=204,
+    summary="Excluir pokémon",
+    responses={
+        404: {
+            "model": ErrorResponse,
+            "description": "Pokémon não encontrado",
+            "content": {"application/json": {"example": {"detail": "Pokémon não encontrado"}}},
+        },
+    },
+)
 def delete_pokemon(pokemon_id: int, db: Session = Depends(get_db)):
     pokemon = get_or_404(db, pokemon_id)
     db.delete(pokemon)

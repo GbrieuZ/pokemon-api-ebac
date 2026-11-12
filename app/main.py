@@ -1,10 +1,13 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, HTTPException, Query
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import Base, engine, SessionLocal
 from app.models import Pokemon
-from app.schemas import PokemonCreate, PokemonUpdate, PokemonOut, PokemonList, ErrorResponse
+from app.schemas import (
+    PokemonCreate, PokemonUpdate, PokemonOut, PokemonList, ErrorResponse,
+)
 
 
 @asynccontextmanager
@@ -31,6 +34,15 @@ def get_or_404(db: Session, pokemon_id: int) -> Pokemon:
     return pokemon
 
 
+def commit_ou_400(db: Session) -> None:
+    """Rede de segurança: nome duplicado vira 400, nunca 500."""
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Pokémon já existe")
+
+
 @app.post(
     "/pokemons",
     response_model=PokemonOut,
@@ -55,7 +67,7 @@ def create_pokemon(data: PokemonCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Pokémon já existe")
     pokemon = Pokemon(**data.model_dump())
     db.add(pokemon)
-    db.commit()
+    commit_ou_400(db)
     db.refresh(pokemon)
     return pokemon
 
@@ -100,6 +112,11 @@ def get_pokemon(pokemon_id: int, db: Session = Depends(get_db)):
     "/pokemons/{pokemon_id}",
     response_model=PokemonOut,
     summary="Atualizar pokémon (parcial)",
+    description=(
+        "Atualização parcial. `name` e `type` podem ser omitidos, mas, se "
+        "enviados, devem ser textos não vazios (`null`, vazio ou só espaços "
+        "retornam 422). `height` e `weight` aceitam `null`."
+    ),
     responses={
         400: {
             "model": ErrorResponse,
@@ -119,7 +136,7 @@ def update_pokemon(pokemon_id: int, data: PokemonUpdate,
     changes = data.model_dump(exclude_unset=True)
 
     new_name = changes.get("name")
-    if new_name and new_name != pokemon.name:
+    if new_name is not None and new_name != pokemon.name:
         duplicate = db.query(Pokemon).filter(
             Pokemon.name == new_name, Pokemon.id != pokemon_id
         ).first()
@@ -128,7 +145,7 @@ def update_pokemon(pokemon_id: int, data: PokemonUpdate,
 
     for field, value in changes.items():
         setattr(pokemon, field, value)
-    db.commit()
+    commit_ou_400(db)
     db.refresh(pokemon)
     return pokemon
 

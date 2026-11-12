@@ -1,4 +1,5 @@
 # Pokémon API
+![CI](https://github.com/GbrieuZ/pokemon-api-ebac/actions/workflows/ci.yml/badge.svg)
 
 API REST para gerenciar pokémons (CRUD completo), construída com **FastAPI**, **SQLAlchemy** e **PostgreSQL**, e containerizada com **Docker**.
 
@@ -183,16 +184,17 @@ A documentação interativa (Swagger) é gerada automaticamente pelo FastAPI:
 - Validação de dados com Pydantic
 - Paginação e busca por nome na listagem
 
-## Erros
+## Erros e regras de validação
 
 | Código | Quando acontece |
 |---|---|
-| 400 | POST ou PUT com nome que já pertence a outro pokémon |
+| 400 | POST ou PUT com nome que já pertence a outro pokémon (a comparação ignora espaços nas pontas) |
 | 404 | Pokémon não encontrado (GET, PUT e DELETE por id) |
-| 422 | Dados inválidos, incluindo `name` ou `type` enviados como `null` no PUT |
+| 422 | `name` ou `type` vazios, só com espaços ou `null`; `height` ou `weight` negativos ou acima de 2147483647 |
 
-No PUT a atualização é parcial: `name` e `type` podem ser omitidos, mas não podem ser `null`.
-
+- `name` e `type` são obrigatórios no POST e não podem ser vazios nem conter apenas espaços. Espaços nas pontas são removidos.
+- No PUT a atualização é parcial: `name` e `type` podem ser **omitidos**, mas, quando enviados, devem ser textos não vazios (`null` retorna 422).
+- `height` e `weight` são opcionais e aceitam `null` no PUT para limpar o valor.
 ## Autor
 
 Gabriel Martins

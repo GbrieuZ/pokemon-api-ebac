@@ -6,6 +6,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.database import Base
 from app.main import app, get_db
+from app.schemas import PokemonUpdate
 
 engine = create_engine(
     "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
@@ -33,6 +34,8 @@ def reset_db():
     yield
     Base.metadata.drop_all(engine)
 
+
+# ---------- CRUD básico ----------
 
 def test_create_pokemon():
     r = client.post("/pokemons", json=PIKACHU)
@@ -87,6 +90,9 @@ def test_delete_pokemon():
     assert client.delete(f"/pokemons/{created['id']}").status_code == 204
     assert client.get(f"/pokemons/{created['id']}").status_code == 404
 
+
+# ---------- PUT: duplicidade e nulos ----------
+
 def test_update_duplicate_name_returns_400():
     client.post("/pokemons", json=PIKACHU)
     raichu = client.post(
@@ -123,3 +129,106 @@ def test_update_omitting_name_and_type_is_allowed():
     assert r.json()["name"] == "pikachu"
     assert r.json()["type"] == "electric"
     assert r.json()["height"] == 5
+
+
+# ---------- POST: nome e tipo vazios ----------
+
+@pytest.mark.parametrize("valor", ["", "   ", "\t\n"])
+def test_create_blank_name_returns_422(valor):
+    r = client.post("/pokemons", json={"name": valor, "type": "electric"})
+    assert r.status_code == 422
+
+
+@pytest.mark.parametrize("valor", ["", "   "])
+def test_create_blank_type_returns_422(valor):
+    r = client.post("/pokemons", json={"name": "pikachu", "type": valor})
+    assert r.status_code == 422
+
+
+def test_create_trims_name_and_type():
+    r = client.post("/pokemons", json={"name": "  pikachu  ", "type": " electric "})
+    assert r.status_code == 201
+    assert r.json()["name"] == "pikachu"
+    assert r.json()["type"] == "electric"
+
+
+def test_create_name_with_spaces_is_duplicate_returns_400():
+    client.post("/pokemons", json=PIKACHU)
+    r = client.post("/pokemons", json={"name": " pikachu ", "type": "electric"})
+    assert r.status_code == 400
+
+
+# ---------- PUT: nome e tipo vazios ----------
+
+@pytest.mark.parametrize("valor", ["", "   "])
+def test_update_blank_name_returns_422(valor):
+    created = client.post("/pokemons", json=PIKACHU).json()
+    r = client.put(f"/pokemons/{created['id']}", json={"name": valor})
+    assert r.status_code == 422
+
+
+@pytest.mark.parametrize("valor", ["", "   "])
+def test_update_blank_type_returns_422(valor):
+    created = client.post("/pokemons", json=PIKACHU).json()
+    r = client.put(f"/pokemons/{created['id']}", json={"type": valor})
+    assert r.status_code == 422
+
+
+def test_update_blank_name_on_second_pokemon_returns_422():
+    client.post("/pokemons", json=PIKACHU)
+    raichu = client.post(
+        "/pokemons", json={"name": "raichu", "type": "electric"}
+    ).json()
+    r = client.put(f"/pokemons/{raichu['id']}", json={"name": ""})
+    assert r.status_code == 422
+
+
+def test_update_name_with_spaces_is_duplicate_returns_400():
+    client.post("/pokemons", json=PIKACHU)
+    raichu = client.post(
+        "/pokemons", json={"name": "raichu", "type": "electric"}
+    ).json()
+    r = client.put(f"/pokemons/{raichu['id']}", json={"name": " pikachu "})
+    assert r.status_code == 400
+
+
+def test_update_trims_name():
+    created = client.post("/pokemons", json=PIKACHU).json()
+    r = client.put(f"/pokemons/{created['id']}", json={"name": "  raichu  "})
+    assert r.status_code == 200
+    assert r.json()["name"] == "raichu"
+
+
+# ---------- Limites numéricos ----------
+
+@pytest.mark.parametrize("campo", ["height", "weight"])
+@pytest.mark.parametrize("valor", [-1, 2147483648])
+def test_create_invalid_number_returns_422(campo, valor):
+    r = client.post("/pokemons", json={**PIKACHU, campo: valor})
+    assert r.status_code == 422
+
+
+@pytest.mark.parametrize("valor", [-1, 2147483648])
+def test_update_invalid_number_returns_422(valor):
+    created = client.post("/pokemons", json=PIKACHU).json()
+    r = client.put(f"/pokemons/{created['id']}", json={"weight": valor})
+    assert r.status_code == 422
+
+
+def test_update_height_null_is_allowed():
+    created = client.post("/pokemons", json=PIKACHU).json()
+    r = client.put(f"/pokemons/{created['id']}", json={"height": None})
+    assert r.status_code == 200
+    assert r.json()["height"] is None
+
+
+# ---------- Documentação (schema do PUT) ----------
+
+def test_update_schema_documents_name_and_type_as_string_only():
+    schema = PokemonUpdate.model_json_schema()
+    for campo in ("name", "type"):
+        prop = schema["properties"][campo]
+        assert prop["type"] == "string"
+        assert "anyOf" not in prop
+        assert "default" not in prop
+        assert campo not in schema.get("required", [])
